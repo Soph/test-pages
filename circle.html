@@ -1,0 +1,221 @@
+<style>
+  .wrap { display:flex; flex-direction:column; align-items:center; gap:10px; padding:4px 0 8px; }
+  .controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center; }
+  .stat { background:var(--color-background-secondary); border-radius:var(--border-radius-md); padding:5px 12px; }
+  .stat-lbl { font-size:11px; color:var(--color-text-secondary); margin-bottom:1px; }
+  .stat-val { font-size:14px; font-weight:500; }
+  .insight { font-size:13px; text-align:center; line-height:1.7; color:var(--color-text-secondary); max-width:400px; }
+</style>
+
+<div class="wrap">
+  <canvas id="cv" width="360" height="360" style="cursor:crosshair;border-radius:8px"></canvas>
+  <div class="controls">
+    <div class="stat" style="display:flex;align-items:center;gap:6px">
+      <div><div class="stat-lbl">α</div><div class="stat-val" id="v-a">45°</div></div>
+      <input id="inp" type="number" step="1" value="45" style="width:60px;font-size:13px;padding:3px 6px;margin-top:2px">
+      <span style="font-size:12px;color:var(--color-text-secondary)">°</span>
+    </div>
+    <div class="stat">
+      <div class="stat-lbl">sin α</div>
+      <div class="stat-val" id="v-s" style="color:#D85A30"></div>
+    </div>
+    <div class="stat">
+      <div class="stat-lbl">cos(α+π/2)</div>
+      <div class="stat-val" id="v-c" style="color:#185FA5"></div>
+    </div>
+  </div>
+  <div class="insight" id="insight"></div>
+</div>
+
+<script>
+(function(){
+  const dark=matchMedia('(prefers-color-scheme: dark)').matches;
+  const fgM  =dark?'#73726c':'#888780';
+  const circS=dark?'rgba(194,192,182,0.15)':'rgba(61,61,58,0.12)';
+  const axS  =dark?'rgba(194,192,182,0.25)':'rgba(61,61,58,0.18)';
+  const gridS=dark?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.04)';
+  const SIN='#D85A30', COS='#185FA5', ANG='#BA7517', EQ='#3B6D11';
+  const f='system-ui,sans-serif';
+
+  let alpha=Math.PI/4, drag=false;
+  const cv=document.getElementById('cv'), cc=cv.getContext('2d');
+  const CX=180,CY=180,R=130,W=360;
+  const norm=a=>((a%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
+
+  function arrow(ctx, x1,y1,x2,y2,col,w=1.5){
+    const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy);
+    if(len<2)return;
+    const ux=dx/len,uy=dy/len,hs=7;
+    ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=w;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2-ux*hs,y2-uy*hs); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-ux*hs-uy*hs*0.5,y2-uy*hs+ux*hs*0.5);
+    ctx.lineTo(x2-ux*hs+uy*hs*0.5,y2-uy*hs-ux*hs*0.5);
+    ctx.closePath(); ctx.fill();
+  }
+
+  function draw(){
+    cc.clearRect(0,0,W,W);
+    const na=norm(alpha);
+    const ca=Math.cos(alpha), sa=Math.sin(alpha);
+    const px=CX+R*ca, py=CY-R*sa;           // P = point at α
+    const qx=CX+R*Math.cos(alpha+Math.PI/2);  // Q = point at α+π/2
+    const qy=CY-R*Math.sin(alpha+Math.PI/2);  // = (-sa, ca) direction
+
+    // grid
+    cc.strokeStyle=gridS; cc.lineWidth=0.5;
+    for(let v=-1;v<=1;v+=0.5){
+      cc.beginPath(); cc.moveTo(CX+R*v,CY-R-18); cc.lineTo(CX+R*v,CY+R+18); cc.stroke();
+      cc.beginPath(); cc.moveTo(CX-R-18,CY-R*v); cc.lineTo(CX+R+18,CY-R*v); cc.stroke();
+    }
+
+    // unit circle
+    cc.strokeStyle=circS; cc.lineWidth=1.5;
+    cc.beginPath(); cc.arc(CX,CY,R,0,2*Math.PI); cc.stroke();
+
+    // axes
+    cc.strokeStyle=axS; cc.lineWidth=1;
+    cc.beginPath();
+    cc.moveTo(CX-R-16,CY); cc.lineTo(CX+R+18,CY);
+    cc.moveTo(CX,CY-R-16); cc.lineTo(CX,CY+R+16);
+    cc.stroke();
+    cc.fillStyle=axS;
+    [[[CX+R+18,CY],[CX+R+13,CY-4],[CX+R+13,CY+4]],
+     [[CX,CY-R-16],[CX-4,CY-R-11],[CX+4,CY-R-11]]].forEach(([a,b,c])=>{
+      cc.beginPath(); cc.moveTo(...a); cc.lineTo(...b); cc.lineTo(...c); cc.closePath(); cc.fill();
+    });
+
+    // --- angle arc α (amber) ---
+    if(na>0.02){
+      cc.fillStyle=dark?'rgba(186,117,23,0.09)':'rgba(186,117,23,0.07)';
+      cc.beginPath(); cc.moveTo(CX,CY); cc.arc(CX,CY,R,0,-na,true); cc.closePath(); cc.fill();
+      cc.strokeStyle=ANG; cc.lineWidth=1.5;
+      cc.beginPath(); cc.arc(CX,CY,24,0,-na,true); cc.stroke();
+      const mid=na/2;
+      cc.fillStyle=ANG; cc.font='italic 14px Georgia,serif'; cc.textAlign='center';
+      cc.fillText('α',CX+38*Math.cos(mid),CY-38*Math.sin(mid)+5);
+    }
+
+    // --- rotation arc: π/2 sweep from P to Q (dashed amber) ---
+    cc.strokeStyle=ANG; cc.lineWidth=1.5; cc.setLineDash([5,4]);
+    cc.beginPath(); cc.arc(CX,CY,R,-alpha,-alpha-Math.PI/2,true); cc.stroke();
+    cc.setLineDash([]);
+    // rotation arrow at Q (tangent direction at end of arc)
+    const tqx=Math.sin(alpha+Math.PI/2), tqy=Math.cos(alpha+Math.PI/2); // tangent to circle at Q (CCW)
+    cc.fillStyle=ANG;
+    cc.beginPath();
+    cc.moveTo(qx,qy);
+    cc.lineTo(qx-tqx*8-tqy*4,qy+tqy*8-tqx*4);  // approximate arrowhead
+    cc.lineTo(qx-tqx*8+tqy*4,qy+tqy*8+tqx*4);
+    cc.closePath(); cc.fill();
+    // label +π/2
+    const mid2=alpha+Math.PI/4;
+    cc.fillStyle=ANG; cc.font=`11px ${f}`; cc.textAlign='center';
+    cc.fillText('+π/2',CX+(R+22)*Math.cos(mid2+.18),CY-(R+22)*Math.sin(mid2+.18));
+
+    // --- P radius (faint) ---
+    cc.strokeStyle=dark?'rgba(216,90,48,0.3)':'rgba(216,90,48,0.22)'; cc.lineWidth=1;
+    cc.beginPath(); cc.moveTo(CX,CY); cc.lineTo(px,py); cc.stroke();
+
+    // --- sin α: vertical drop from P to x-axis (coral, bold) ---
+    cc.strokeStyle=SIN; cc.lineWidth=3;
+    cc.beginPath(); cc.moveTo(px,py); cc.lineTo(px,CY); cc.stroke();
+    // dashed horizontal to y-axis
+    cc.strokeStyle=SIN; cc.lineWidth=0.9; cc.setLineDash([3,3]);
+    cc.beginPath(); cc.moveTo(px,py); cc.lineTo(CX,py); cc.stroke();
+    cc.setLineDash([]);
+    // y-axis tick
+    cc.strokeStyle=SIN; cc.lineWidth=1.8;
+    cc.beginPath(); cc.moveTo(CX-6,py); cc.lineTo(CX+6,py); cc.stroke();
+
+    // --- Q radius (faint) ---
+    cc.strokeStyle=dark?'rgba(24,95,165,0.3)':'rgba(24,95,165,0.22)'; cc.lineWidth=1;
+    cc.beginPath(); cc.moveTo(CX,CY); cc.lineTo(qx,qy); cc.stroke();
+
+    // --- cos(α+π/2): horizontal projection of Q (blue, bold) ---
+    cc.strokeStyle=COS; cc.lineWidth=3;
+    cc.beginPath(); cc.moveTo(CX,CY); cc.lineTo(qx,CY); cc.stroke();
+    // dashed vertical to Q
+    cc.strokeStyle=COS; cc.lineWidth=0.9; cc.setLineDash([3,3]);
+    cc.beginPath(); cc.moveTo(qx,CY); cc.lineTo(qx,qy); cc.stroke();
+    cc.setLineDash([]);
+    // x-axis tick
+    cc.strokeStyle=COS; cc.lineWidth=1.8;
+    cc.beginPath(); cc.moveTo(qx,CY-6); cc.lineTo(qx,CY+6); cc.stroke();
+
+    // --- equality bridge: dashed green line linking the two ticks ---
+    // sin α tick is at (CX, py), cos tick is at (qx, CY)
+    // draw a brace-like pair of lines showing they're the same distance from origin
+    cc.strokeStyle=EQ; cc.lineWidth=1; cc.setLineDash([2,3]);
+    cc.beginPath(); cc.moveTo(CX,py); cc.lineTo(CX,CY); cc.stroke(); // sin span on y-axis
+    cc.beginPath(); cc.moveTo(qx,CY); cc.lineTo(CX,CY); cc.stroke(); // cos span on x-axis
+    cc.setLineDash([]);
+    // small arc at origin showing the corner match
+    cc.strokeStyle=EQ; cc.lineWidth=1.2;
+    cc.beginPath(); cc.arc(CX,CY,14,Math.PI/2,Math.PI); cc.stroke();
+
+    // --- coordinate labels on the points ---
+    cc.font=`12px ${f}`;
+    const labelP=`(cos α, sin α)`;
+    const labelQ=`(−sin α, cos α)`;
+    // place label for P
+    let lx=px+(ca>=0?10:-10), ly=py+(sa>=0?-10:14);
+    cc.textAlign=ca>=0?'left':'right';
+    cc.fillStyle=dark?'rgba(216,90,48,0.9)':'rgba(216,90,48,1)';
+    cc.fillText('P '+labelP,lx,ly);
+    // place label for Q
+    const qca=Math.cos(alpha+Math.PI/2), qsa=Math.sin(alpha+Math.PI/2);
+    let qlx=qx+(qca>=0?10:-10), qly=qy+(qsa>=0?-10:14);
+    cc.textAlign=qca>=0?'left':'right';
+    cc.fillStyle=dark?'rgba(24,95,165,0.9)':'rgba(24,95,165,1)';
+    cc.fillText('Q '+labelQ,qlx,qly);
+
+    // --- dots ---
+    [[ px,py,SIN],[qx,qy,COS]].forEach(([x,y,col])=>{
+      cc.fillStyle=col;
+      cc.beginPath(); cc.arc(x,y,7,0,2*Math.PI); cc.fill();
+      cc.strokeStyle=dark?'#1a1a18':'#fff'; cc.lineWidth=2; cc.stroke();
+    });
+
+    // axis numbers
+    cc.fillStyle=fgM; cc.font=`11px ${f}`;
+    cc.textAlign='left';  cc.fillText('1',CX+R+4,CY-4);  cc.fillText('1',CX+4,CY-R-4);
+    cc.textAlign='right'; cc.fillText('-1',CX-R-4,CY-4); cc.fillText('-1',CX-3,CY+R+11);
+  }
+
+  function update(){
+    draw();
+    const deg=((alpha*180/Math.PI)%360+360)%360;
+    document.getElementById('v-a').textContent=deg.toFixed(1)+'°';
+    document.getElementById('v-s').textContent=Math.sin(alpha).toFixed(4);
+    document.getElementById('v-c').textContent=Math.cos(alpha+Math.PI/2).toFixed(4);
+    document.getElementById('inp').value=Math.round(deg);
+    document.getElementById('insight').innerHTML=
+      `Rotating <span style="color:${SIN}">P = (cos α, sin α)</span> by 90° gives `+
+      `<span style="color:${COS}">Q = (−sin α, cos α)</span>.<br>`+
+      `Q's x-coordinate is <strong>cos(α+π/2) = −sin α</strong>.`;
+  }
+
+  function angleFrom(e){
+    const r=cv.getBoundingClientRect(), t=e.touches?e.touches[0]:e;
+    return Math.atan2(-((t.clientY-r.top)*(W/r.height)-CY),(t.clientX-r.left)*(W/r.width)-CX);
+  }
+
+  cv.addEventListener('mousedown',e=>{drag=true;alpha=angleFrom(e);update();});
+  cv.addEventListener('mousemove',e=>{if(drag){alpha=angleFrom(e);update();}});
+  document.addEventListener('mouseup',()=>drag=false);
+  cv.addEventListener('touchstart',e=>{e.preventDefault();drag=true;alpha=angleFrom(e);update();},{passive:false});
+  cv.addEventListener('touchmove',e=>{e.preventDefault();if(drag){alpha=angleFrom(e);update();}},{passive:false});
+  document.addEventListener('touchend',()=>drag=false);
+
+  const inp=document.getElementById('inp');
+  inp.addEventListener('input',()=>{const v=parseFloat(inp.value);if(!isNaN(v)){alpha=v*Math.PI/180;update();}});
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='ArrowUp'){e.preventDefault();inp.value=(parseFloat(inp.value)||0)+1;inp.dispatchEvent(new Event('input'));}
+    if(e.key==='ArrowDown'){e.preventDefault();inp.value=(parseFloat(inp.value)||0)-1;inp.dispatchEvent(new Event('input'));}
+  });
+
+  update();
+})();
+</script>
