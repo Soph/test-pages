@@ -8,7 +8,7 @@
 </style>
 
 <div class="wrap">
-  <canvas id="cv" width="360" height="360" style="cursor:crosshair;border-radius:8px"></canvas>
+  <canvas id="cv" width="440" height="440" style="cursor:crosshair;border-radius:8px"></canvas>
   <div class="controls">
     <div class="stat" style="display:flex;align-items:center;gap:6px">
       <div><div class="stat-lbl">α</div><div class="stat-val" id="v-a">45°</div></div>
@@ -39,7 +39,7 @@
 
   let alpha=Math.PI/4, drag=false;
   const cv=document.getElementById('cv'), cc=cv.getContext('2d');
-  const CX=180,CY=180,R=130,W=360;
+  const CX=220,CY=220,R=130,W=440;
   const norm=a=>((a%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
 
   function arrow(ctx, x1,y1,x2,y2,col,w=1.5){
